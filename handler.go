@@ -28,15 +28,15 @@ func handleInputEvents(ch chan inputEvents) {
 	}
 	defer keyboard.Close()
 
+	// the state represents the fn state
 	state := 0 // 0 - normal state, 1 - fn pressed but no decision yet, 2 - fn bypass by repetition, 3 - remap mode
 
 	for ie := range ch {
 		events := ie.events
 
 		if monitor {
-			fmt.Println("input:")
 			for _, ev := range events {
-				fmt.Printf("%v %v(%v, 0x%x) %v\n", ev.Time, evdev.ByEventType[int(ev.Type)][int(ev.Code)], int(ev.Type), int(ev.Code), ev.Value)
+				fmt.Printf("inp: %v(%v, 0x%x) %v\n", evdev.ByEventType[int(ev.Type)][int(ev.Code)], int(ev.Type), int(ev.Code), ev.Value)
 			}
 			fmt.Println()
 		}
@@ -72,14 +72,13 @@ func handleInputEvents(ch chan inputEvents) {
 					oe = append(oe, evdev.InputEvent{Type: evdev.SYN_REPORT})                 // syn report
 					state = 2                                                                 // fn bypass by repetition
 				}
-			case state == 1 /* fn pressed but yet no decision */ && key != fnKey:
+			case state == 1 /* fn pressed but yet no decision */ && key != fnKey && ev.Value == 1 /* pressed */ :
 				{
 					n, ok := keyMap[key]
 					if ok {
 						ev.Code = uint16(n)
 						state = 3 // remap mode
 					}
-
 				}
 			case state == 3 /* remap mode */ && key == fnKey:
 				{
@@ -100,9 +99,8 @@ func handleInputEvents(ch chan inputEvents) {
 		events = oe
 
 		if monitor {
-			fmt.Println("bypass:")
 			for _, ev := range events {
-				fmt.Printf("%v %v(%v, 0x%x) %v\n", ev.Time, evdev.ByEventType[int(ev.Type)][int(ev.Code)], int(ev.Type), int(ev.Code), ev.Value)
+				fmt.Printf("out: %v(%v, 0x%x) %v\n", evdev.ByEventType[int(ev.Type)][int(ev.Code)], int(ev.Type), int(ev.Code), ev.Value)
 			}
 			fmt.Println()
 		}

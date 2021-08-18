@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 	"sync"
@@ -19,6 +20,9 @@ func main() {
 	// appears we might start up faster than input device flushed
 	// fully by the host and thats triggers some odd repetitions
 	time.Sleep(1 * time.Second)
+
+	flag.BoolVar(&monitor, "monitor", monitor, "monitor events")
+	flag.Parse()
 
 	// List all devices matching glob
 	devices, err := evdev.ListInputDevices(device_glob)
