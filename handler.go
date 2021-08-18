@@ -117,29 +117,5 @@ func handleInputEvents(ch chan inputEvents) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		// .....todo - rework....
-		/*
-			if false {
-				for _, ev := range events {
-					if monitor {
-						fmt.Printf("%v %v(%v, 0x%x) %v\n", ev.Time, evdev.ByEventType[int(ev.Type)][int(ev.Code)], int(ev.Type), int(ev.Code), ev.Value)
-					}
-
-					if int(ev.Type) != evdev.EV_KEY { // skip non key events
-						continue
-					}
-					code := int(ev.Code)
-					if code == fnKey {
-						if ev.Value != 2 {
-							is_pressed := ev.Value == 1
-							if fnMode != is_pressed {
-								fmt.Printf("fnMode %v\n", is_pressed)
-								fnMode = is_pressed
-							}
-						}
-					}
-				}
-			}
-		*/
 	}
 }
