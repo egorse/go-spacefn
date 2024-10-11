@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"log"
-	"os"
 	"sync"
 	"time"
 
@@ -14,6 +13,7 @@ var device_glob = "/dev/input/by-id/*"
 var monitor = false
 var fnKey = evdev.KEY_SPACE
 var keyMap = keyMap1
+var ok = false
 
 func main() {
 
@@ -22,18 +22,10 @@ func main() {
 	time.Sleep(1 * time.Second)
 
 	flag.BoolVar(&monitor, "monitor", monitor, "monitor events")
+	flag.BoolVar(&ok, "ok", ok, "assume all is ok - ignore absent device")
 	flag.Parse()
 
-	// List all devices matching glob
-	devices, err := evdev.ListInputDevices(device_glob)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if len(devices) == 0 {
-		// You might have to run as sudo or being in proper group (i.e. input)
-		log.Fatal("no input devices opened!!! permissions issues?")
-	}
-
+	// Run processing
 	ch := make(chan inputEvents, 32)
 	var wg1 sync.WaitGroup
 	wg1.Add(1)
@@ -42,41 +34,58 @@ func main() {
 		handleInputEvents(ch)
 	}()
 
-	var wg2 sync.WaitGroup
-	for _, dev := range devices {
-
-		if !hasKeyboardCapabilities(dev) {
-			dev.File.Close()
+	// would be true after 1st success
+	// this would allows to separate potential permissions issues
+	// or just missing device
+	for {
+		// List all devices matching glob
+		devices, err := evdev.ListInputDevices(device_glob)
+		if !ok && err != nil {
+			log.Fatal(err)
+		}
+		if !ok && len(devices) == 0 {
+			// You might have to run as sudo or being in proper group (i.e. input)
+			log.Fatal("no input devices opened!!! permissions issues?")
+		}
+		ok = true
+		if len(devices) == 0 {
+			time.Sleep(2 * time.Second)
 			continue
 		}
-		log.Printf("using %s, %s", dev.Fn, dev.Name)
 
-		wg2.Add(1)
-		// Next goroutines will push all input events to channel to be handled
-		go func(dev *evdev.InputDevice) {
-			defer wg2.Done()
-
-			err := dev.Grab()
-			if err != nil {
-				log.Fatalf("cannot grab exclusively %s, %s: %v", dev.Fn, dev.Name, err)
+		var wg2 sync.WaitGroup
+		for _, dev := range devices {
+			if !hasKeyboardCapabilities(dev) {
+				dev.File.Close()
+				continue
 			}
-			defer dev.Release()
+			log.Printf("using %s, %s", dev.Fn, dev.Name)
 
-			for {
-				events, err := dev.Read()
+			wg2.Add(1)
+			// Next goroutines will push all input events to channel to be handled
+			go func(dev *evdev.InputDevice) {
+				defer wg2.Done()
 
-				// WARN In case of plug and play devices we have to handle it more nicer
+				err := dev.Grab()
 				if err != nil {
-					log.Fatalf("error read %s, %s: %v", dev.Fn, dev.Name, err)
-					os.Exit(1)
+					log.Fatalf("cannot grab exclusively %s, %s: %v", dev.Fn, dev.Name, err)
 				}
+				defer dev.Release()
 
-				ie := inputEvents{dev, events}
-				ch <- ie
-			}
-		}(dev)
+				for {
+					events, err := dev.Read()
+					if err != nil {
+						log.Printf("error read %s, %s: %v", dev.Fn, dev.Name, err)
+						return
+					}
+
+					ie := inputEvents{dev, events}
+					ch <- ie
+				}
+			}(dev)
+		}
+		wg2.Wait()
 	}
-	wg2.Wait()
 
 	close(ch)
 	wg1.Wait()
