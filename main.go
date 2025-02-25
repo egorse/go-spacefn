@@ -34,7 +34,7 @@ func main() {
 		log.Fatal("no input devices opened!!! permissions issues?")
 	}
 
-	ch := make(chan inputEvents, 32)
+	ch := make(chan inputEvents)
 	var wg1 sync.WaitGroup
 	wg1.Add(1)
 	go func() {

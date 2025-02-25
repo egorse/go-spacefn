@@ -5,18 +5,11 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
-	"syscall"
+	"time"
 
 	evdev "github.com/egorse/golang-evdev"
 	"github.com/egorse/uinput"
 )
-
-func trace(str string) {
-	if !monitor {
-		return
-	}
-	fmt.Println(str)
-}
 
 func handleInputEvents(ch chan inputEvents) {
 	// Create virtual keyboard
@@ -32,75 +25,21 @@ func handleInputEvents(ch chan inputEvents) {
 	state := 0 // 0 - normal state, 1 - fn pressed but no decision yet, 2 - fn bypass by repetition, 3 - remap mode
 
 	for ie := range ch {
+		now := time.Now().UnixNano()
 		events := ie.events
 
 		if monitor {
 			for _, ev := range events {
-				fmt.Printf("inp: %v(%v, 0x%x) %v\n", evdev.ByEventType[int(ev.Type)][int(ev.Code)], int(ev.Type), int(ev.Code), ev.Value)
+				fmt.Printf("%v,inp,%v,%v,0x%x,%v\n", now, evdev.ByEventType[int(ev.Type)][int(ev.Code)], int(ev.Type), int(ev.Code), ev.Value)
 			}
 			fmt.Println()
 		}
 
-		oe := make([]evdev.InputEvent, 0, 16)
-		for _, ev := range events {
-			ev.Time = syscall.Timeval{Sec: 0, Usec: 0}
-
-			key := -1
-			if int(ev.Type) == evdev.EV_KEY {
-				key = int(ev.Code)
-			}
-
-			switch {
-			case state != 1 && key == fnKey && ev.Value == 0 /* released */ :
-				{
-					state = 0 // normal
-				}
-			case state == 0 /* normal */ && key == fnKey && ev.Value == 1 /* pressed */ :
-				{
-					state = 1 // fn pressed but yet no decision
-					continue  // skip current event
-				}
-			case state == 1 /* fn pressed but yet no decision */ && key == fnKey && ev.Value == 0 /* released */ :
-				{
-					oe = append(oe, evdev.InputEvent{Type: ev.Type, Code: ev.Code, Value: 1}) // append extra key press
-					oe = append(oe, evdev.InputEvent{Type: evdev.SYN_REPORT})                 // syn report
-					state = 0                                                                 // normal
-				}
-			case state == 1 /* fn pressed but yet no decision */ && key == fnKey && ev.Value == 2 /* repeated */ :
-				{
-					oe = append(oe, evdev.InputEvent{Type: ev.Type, Code: ev.Code, Value: 1}) // append extra key press
-					oe = append(oe, evdev.InputEvent{Type: evdev.SYN_REPORT})                 // syn report
-					state = 2                                                                 // fn bypass by repetition
-				}
-			case state == 1 /* fn pressed but yet no decision */ && key != fnKey && ev.Value == 1 /* pressed */ :
-				{
-					n, ok := keyMap[key]
-					if ok {
-						ev.Code = uint16(n)
-						state = 3 // remap mode
-					}
-				}
-			case state == 3 /* remap mode */ && key == fnKey:
-				{
-					continue // skip current event
-				}
-			case state == 3 /* remap mode */ && key != fnKey:
-				{
-					// WARN in remap mode we probably should skip non remapped keys but lets keep those for a while
-					n, ok := keyMap[key]
-					if ok {
-						ev.Code = uint16(n)
-					}
-				}
-			}
-
-			oe = append(oe, ev)
-		}
-		events = oe
+		state, events = filterEvents(state, events)
 
 		if monitor {
 			for _, ev := range events {
-				fmt.Printf("out: %v(%v, 0x%x) %v\n", evdev.ByEventType[int(ev.Type)][int(ev.Code)], int(ev.Type), int(ev.Code), ev.Value)
+				fmt.Printf("%v,out,%v,%v,0x%x,%v\n", now, evdev.ByEventType[int(ev.Type)][int(ev.Code)], int(ev.Type), int(ev.Code), ev.Value)
 			}
 			fmt.Println()
 		}
