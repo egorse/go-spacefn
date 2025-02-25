@@ -31,11 +31,10 @@ Ensure you have permissions to access to /dev/input/by-id/* (i.e. you are in gro
 
 # Current known/expected limitations
 
-No support for hot plug.
+Basic hot plug.
 No command line args.
 No map customization.
 
 # TODO
-- hot plug support
 - customize fn key
 - customize the map

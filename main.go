@@ -16,6 +16,7 @@ var keyMap = keyMap1
 var ok = false
 
 func main() {
+	log.Printf("go-spacefn started ...")
 
 	// appears we might start up faster than input device flushed
 	// fully by the host and thats triggers some odd repetitions
